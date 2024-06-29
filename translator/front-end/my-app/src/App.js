@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from "react";
-import { Button, Stack, IconButton } from "@mui/material";
-import { MicNone, MicOff, Refresh, VolumeUp, VolumeOff } from "@mui/icons-material";
+import {
+  Button,
+  Stack,
+  IconButton,
+  Typography,
+  InputAdornment,
+  Tooltip,
+} from "@mui/material";
+import {
+  MicNone,
+  MicOff,
+  Refresh,
+  VolumeUp,
+  VolumeOff,
+  Translate
+} from "@mui/icons-material";
+
 
 import { useSpeech } from "react-text-to-speech";
 import SpeechRecognition, {
@@ -10,10 +25,12 @@ import Autocomplete from "@mui/material/Autocomplete";
 import axios from "axios";
 import languages from "./languages.json";
 import TextField from "./components/TextField";
+import InputBase from "./components/InputBase";
+
 
 const defaultValues = {
   fromLanguage: { code: "en-US", name: "English" },
-  toLanguage: "English",
+  toLanguage: { key: "en", label: "English" },
   enteredText: "",
   translatedText: "",
 };
@@ -47,6 +64,11 @@ function App() {
   }, [isListening, translator.fromLanguage]);
 
   useEffect(() => {
+    console.log("Initial 'translator' state:", translator);
+    console.log("Initial 'data' state:", data);
+  }, []);
+
+  useEffect(() => {
     getLanguages();
   }, []);
 
@@ -59,7 +81,8 @@ function App() {
           key: key,
           label: languages[key],
         }));
-        setData(transformedData);
+
+        setData(transformedData, console.log(transformedData));
         setLoading(false);
       })
       .catch((error) => {
@@ -73,10 +96,10 @@ function App() {
   };
 
   const handleSubmit = (event) => {
-    event.preventDefault();
+    event.preventDefault(translator);
     const data = {
       text: translator.enteredText || transcript,
-      fromLanguage: translator.fromLanguage.key,
+      fromLanguage: translator.fromLanguage.code,
       toLanguage: translator.toLanguage.key,
     };
     axios
@@ -89,6 +112,8 @@ function App() {
       })
       .catch((error) => {
         setError(error);
+        // Display error message to user
+        alert("Translation failed: " + error.message);
       });
   };
 
@@ -99,18 +124,18 @@ function App() {
     <Stack
       alignItems="center"
       justifyContent="center"
-      height="100vh"
+      // height="100vh"
+      mt={5}
       width="100%"
       gap={2}
     >
-      <Stack direction="row" gap={2}>
-        <Stack alignItems="center" justifyContent="center">
-          <IconButton onClick={toggleListening}>
-            {isListening ? <MicOff sx={{ color: "red" }} /> : <MicNone />}
-          </IconButton>
-        </Stack>
-        <Stack>
-          <Stack direction="row" gap={2}>
+      <Typography variant="h5">Translator <Translate sx={{color:'blue'}} /></Typography>
+
+      <Stack gap={2}>
+        <Stack
+        //  alignItems="center"
+          justifyContent="center" gap={10} direction={"row"}>
+          <Stack>
             <Autocomplete
               value={translator.fromLanguage}
               options={Object.entries(languages).map(([code, name]) => ({
@@ -127,32 +152,20 @@ function App() {
                 option.code === value.code
               }
               renderInput={(params) => (
-                <TextField {...params} label="Speech Language" />
-              )}
-            />
-            <Autocomplete
-              value={translator.toLanguage}
-              options={data}
-              onChange={(_, value) =>
-                setTranslator((prev) => ({ ...prev, toLanguage: value }))
-              }
-              sx={{ width: 300, mb: 2 }}
-              renderInput={(params) => (
-                <TextField {...params} label="To language" />
+                <TextField
+                  {...params}
+                  variant="standard"
+                  label="Choose your language"
+                />
               )}
             />
           </Stack>
 
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="center"
-            gap={2}
-          >
-            <TextField
-              label="Enter some text"
-              variant="outlined"
+          <Stack>
+            <InputBase
+              label="Enter text ..."
               Autocomplete
+              multiline
               value={translator.enteredText || transcript}
               onChange={(e) => {
                 resetTranscript();
@@ -161,40 +174,104 @@ function App() {
                   enteredText: e.target.value,
                 }));
               }}
+              InputProps={{
+                style: { fontSize: '20px' },
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconButton onClick={toggleListening}>
+                      {isListening ? (
+                        <Tooltip title="Turn off mic">
+                          <MicOff sx={{ color: "red" }} />
+                        </Tooltip>
+                      ) : (
+                        <Tooltip title="Turn on Mic">
+                          <MicNone />
+                        </Tooltip>
+                      )}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Stack>
+        </Stack>
+        <Stack sx={{ gap: "10rem" }} >
+          <Stack
+            direction="row"
+            // alignItems="center"
+            justifyContent="center"
+            gap={10}
+          >
+            <Autocomplete
+              value={translator.toLanguage}
+              options={data || []}
+              onChange={(_, value) => {
+                console.log(
+                  "Previous 'toLanguage' value:",
+                  translator.toLanguage
+                );
+                console.log("New 'toLanguage' value:", value);
+
+                setTranslator((prev) => {
+                  const newValue = value || defaultValues.toLanguage;
+                  console.log("Updated 'toLanguage' value:", newValue);
+                  return { ...prev, toLanguage: newValue };
+                });
+              }}
+              sx={{ width: 300, mb: 2 }}
+              renderInput={(params) => (
+                <TextField {...params} variant="standard" label="Choose language to translate" />
+              )}
+              getOptionLabel={(option) => option.label || ""}
+              isOptionEqualToValue={(option, value) => option.key === value.key}
             />
 
-            <TextField
+            <InputBase
               label="Translated text"
-              variant="outlined"
               value={translator.translatedText}
               multiline
-              InputLabelProps={{ shrink: true }}
               readOnly
+              InputProps={{
+                style: { fontSize: '25px' },
+                startAdornment: (
+                  <InputAdornment position="start">
+                    {speechStatus !== "started" ? (
+                      <IconButton
+                        disabled={!translator.translatedText}
+                        onClick={start}
+                      >
+                        <Tooltip title="Listen">
+                        <VolumeUp />
+                        </Tooltip>
+                      </IconButton>
+                    ) : (
+                      <IconButton onClick={stop}>
+                       <Tooltip title="Turn off">
+                        <VolumeOff sx={{color:'red'}} />
+                                                </Tooltip>
+
+                      </IconButton>
+                    )}
+                  </InputAdornment>
+                ),
+              }}
             />
-            {speechStatus !== "started" ? (
-              <Button disabled={!translator.translatedText} onClick={start}>
-                <VolumeUp />
-              </Button>
-            ) : (
-              <Button onClick={stop}>
-                <VolumeOff />
-              </Button>
-            )}
           </Stack>
         </Stack>
       </Stack>
-      <Stack direction="row" justifyContent="center" alignItems="center">
+      <Stack direction="row"  justifyContent="center" alignItems="center">
         <Button
           type="submit"
           variant="contained"
           color="primary"
           onClick={handleSubmit}
-          sx={{ marginRight: "0.75rem" }}
+          sx={{ marginRight: "0.75rem"}}
         >
           Translate
         </Button>
 
         <IconButton variant="outlined">
+          <Tooltip title="Refresh">
           <Refresh
             onClick={() => {
               resetTranscript();
@@ -202,6 +279,7 @@ function App() {
             }}
             sx={{ color: "#2196f3" }}
           />
+          </Tooltip>
         </IconButton>
       </Stack>
       {!browserSupportsSpeechRecognition && (
